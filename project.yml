@@ -1,6 +1,6 @@
-name: SystemPulse
+name: Lee-SystemPulse
 options:
-  bundleIdPrefix: com.codex
+  bundleIdPrefix: com.lee
   deploymentTarget:
     macOS: "14.0"
 settings:
@@ -12,35 +12,35 @@ settings:
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: NO
 targets:
-  SystemPulse:
+  LeeSystemPulse:
     type: application
     platform: macOS
     sources:
-      - SystemPulse
+      - LeeSystemPulse
     resources:
-      - SystemPulse/Assets.xcassets
+      - LeeSystemPulse/Assets.xcassets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.cloudjianlee.SystemPulse
-        PRODUCT_MODULE_NAME: SystemPulse
-        INFOPLIST_FILE: SystemPulse/Info.plist
-        PRODUCT_NAME: System Pulse
+        PRODUCT_BUNDLE_IDENTIFIER: com.lee.leesystempulse
+        PRODUCT_MODULE_NAME: LeeSystemPulse
+        INFOPLIST_FILE: LeeSystemPulse/Info.plist
+        PRODUCT_NAME: Lee-SystemPulse
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""
     scheme:
       testTargets:
-        - SystemPulseTests
-  SystemPulseTests:
+        - LeeSystemPulseTests
+  LeeSystemPulseTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - SystemPulseTests
+      - LeeSystemPulseTests
     dependencies:
-      - target: SystemPulse
+      - target: LeeSystemPulse
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.cloudjianlee.SystemPulseTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.lee.leesystempulse.LeeSystemPulseTests
         GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/System Pulse.app/Contents/MacOS/System Pulse"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Lee-SystemPulse.app/Contents/MacOS/Lee-SystemPulse"
         BUNDLE_LOADER: "$(TEST_HOST)"
