@@ -14,6 +14,7 @@ PLIST_TEMPLATE="$ROOT_DIR/Resources/Info.plist"
 ICON_FILE="$ROOT_DIR/Resources/AppIcon.icns"
 ARCHIVE=false
 SKIP_TESTS=false
+INSTALL=false
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 
 usage() {
@@ -22,6 +23,7 @@ Usage: ./Scripts/package_app.sh [options]
 
 Options:
   --archive      Also create a versioned DMG and SHA-256 checksum.
+  --install      Install the app to /Applications after packaging.
   --skip-tests   Skip the Swift test suite.
   -h, --help     Show this help.
 
@@ -34,6 +36,9 @@ while (($# > 0)); do
   case "$1" in
     --archive)
       ARCHIVE=true
+      ;;
+    --install)
+      INSTALL=true
       ;;
     --skip-tests)
       SKIP_TESTS=true
@@ -157,4 +162,14 @@ if [[ "$ARCHIVE" == true ]]; then
 
   echo "Disk image: $DMG_PATH"
   echo "Checksum: $CHECKSUM_PATH"
+fi
+
+if [[ "$INSTALL" == true ]]; then
+  INSTALL_DEST="/Applications/$APP_NAME.app"
+  if [[ -d "$INSTALL_DEST" ]]; then
+    echo "Removing existing app at $INSTALL_DEST"
+    rm -rf "$INSTALL_DEST"
+  fi
+  cp -R "$APP_DIR" "/Applications/"
+  echo "Installed: $INSTALL_DEST"
 fi

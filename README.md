@@ -1,4 +1,4 @@
-# System Pulse
+# Lee-SystemPulse
 
 一款原生 macOS 菜单栏 CPU 与内存监控工具。
 
@@ -10,19 +10,24 @@
 - 60 次采样历史曲线与详细占用数据
 - 支持 1、2、5 秒刷新频率
 - 支持开机自动启动
+- 防止重复启动（系统级 + 运行时双保险）
 - 不收集数据，不包含遥测
 
 ## Requirements
 
 - macOS 14 或更高版本
-- Xcode 16 或更高版本
-- XcodeGen
+- Swift 6.3+
 
 ## Build
 
 ```sh
-xcodegen generate
-xcodebuild -project SystemPulse.xcodeproj -scheme SystemPulse test
+swift build
+```
+
+## Test
+
+```sh
+swift test
 ```
 
 状态颜色：
@@ -32,23 +37,15 @@ xcodebuild -project SystemPulse.xcodeproj -scheme SystemPulse test
 - 90% 至 95%：警告红
 - 95% 至 100%：深红色严重拥塞
 
-## Run
-
-构建后打开：
-
-```text
-.build/Build/Products/Debug/System Pulse.app
-```
-
 ## 发布构建
 
 ```sh
-./scripts/build-release.sh 1.0.0
+./scripts/package_app.sh --archive
 ```
 
-安装包会生成到 `dist/System-Pulse-1.0.0.dmg`。
+安装包会生成到 `dist/` 目录，包含 `.app`、`.dmg` 和 `.sha256` 校验文件。
 
-> 当前公开构建使用临时签名。若 macOS 阻止首次打开，请右键应用并选择“打开”。
+> 当前公开构建使用临时签名。若 macOS 阻止首次打开，请右键应用并选择”打开”。
 
 ## 许可证
 
