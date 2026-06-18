@@ -16,7 +16,7 @@
 ## Requirements
 
 - macOS 14 或更高版本
-- Swift 6.3+
+- Swift 6.0+
 
 ## Build
 
