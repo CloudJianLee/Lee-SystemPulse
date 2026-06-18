@@ -175,16 +175,32 @@ struct MonitorPopover: View {
                 color: UsageLevel(monitor.memory).color,
                 history: monitor.memoryHistory
             ) {
-                HStack(spacing: 14) {
-                    StatDot(label: "已用", value: bytes(monitor.usedBytes), color: UsageLevel(monitor.memory).color)
-                    StatDot(label: "缓存", value: bytes(monitor.cachedBytes), color: .green)
-                    StatDot(label: "可用", value: bytes(monitor.availableBytes), color: .secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 14) {
+                        StatDot(label: "已用", value: bytes(monitor.usedBytes), color: UsageLevel(monitor.memory).color)
+                        StatDot(label: "活跃", value: bytes(monitor.activeBytes), color: .blue)
+                        StatDot(label: "可用", value: bytes(monitor.availableBytes), color: .secondary)
+                    }
+                    HStack(spacing: 14) {
+                        StatDot(label: "Wired", value: bytes(monitor.wiredBytes), color: .purple)
+                        StatDot(label: "压缩", value: bytes(monitor.compressedBytes), color: .orange)
+                        StatDot(label: "可清除", value: bytes(monitor.purgeableBytes), color: .green)
+                    }
+                    if monitor.swapTotalBytes > 0 {
+                        HStack(spacing: 14) {
+                            StatDot(label: "Swap", value: bytes(monitor.swapUsedBytes), color: monitor.swapUsedBytes > 0 ? .red : .secondary)
+                            StatDot(label: "Swap 总量", value: bytes(monitor.swapTotalBytes), color: .secondary)
+                            Spacer()
+                        }
+                    }
                 }
             }
             Divider()
+            MemoryAnalysisSection(monitor: monitor)
+            Divider()
             settings
         }
-        .frame(width: 360)
+        .frame(width: 420)
         .background(.regularMaterial)
     }
 
@@ -380,6 +396,123 @@ struct SettingRow<Trailing: View>: View {
         }
         .frame(minHeight: 44)
         .padding(.horizontal, 18)
+    }
+}
+
+struct MemoryAnalysisSection: View {
+    @Bindable var monitor: SystemMonitor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack(spacing: 10) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(monitor.memoryPressure.color)
+                    .frame(width: 32)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("内存分析")
+                        .font(.headline)
+                    HStack(spacing: 4) {
+                        Image(systemName: monitor.memoryPressure.systemImage)
+                            .foregroundStyle(monitor.memoryPressure.color)
+                            .font(.caption)
+                        Text(monitor.memoryPressure.label)
+                            .foregroundStyle(monitor.memoryPressure.color)
+                    }
+                    .font(.subheadline)
+                }
+                Spacer()
+            }
+
+            // I/O rates
+            HStack(spacing: 18) {
+                StatDot(label: "Page-ins", value: "\(Int(monitor.pageinsPerSec))/s", color: monitor.pageinsPerSec > 100 ? .orange : .secondary)
+                StatDot(label: "Swap-ins", value: "\(Int(monitor.swapinsPerSec))/s", color: monitor.swapinsPerSec > 10 ? .red : .secondary)
+            }
+            .font(.caption)
+            .padding(.leading, 42)
+
+            // Optimization tips
+            if !monitor.optimizationTips.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("优化建议")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(Array(monitor.optimizationTips.enumerated()), id: \.offset) { _, tip in
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "lightbulb.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.yellow)
+                                .frame(width: 12)
+                                .padding(.top, 2)
+                            Text(tip)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.leading, 42)
+            }
+
+            // Top processes
+            if !monitor.topProcesses.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("内存占用 Top \(monitor.topProcesses.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 42)
+
+                    ForEach(monitor.topProcesses) { process in
+                        ProcessRow(process: process, totalBytes: monitor.totalBytes)
+                    }
+                }
+                .padding(.leading, 42)
+            }
+        }
+        .padding(18)
+    }
+}
+
+struct ProcessRow: View {
+    let process: ProcessMemoryInfo
+    let totalBytes: UInt64
+
+    private var ratio: Double {
+        totalBytes > 0 ? Double(process.residentBytes) / Double(totalBytes) : 0
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(process.name)
+                .font(.caption.monospaced())
+                .frame(width: 120, alignment: .leading)
+                .lineLimit(1)
+
+            Text("PID \(process.pid)")
+                .font(.caption2.monospaced())
+                .foregroundStyle(.tertiary)
+                .frame(width: 52, alignment: .leading)
+
+            Spacer()
+
+            Text(bytes(process.residentBytes))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(UsageLevel(ratio).color)
+                .frame(width: 62, alignment: .trailing)
+
+            // Mini bar
+            GeometryReader { proxy in
+                Capsule()
+                    .fill(UsageLevel(ratio).color.opacity(0.6))
+                    .frame(width: max(2, proxy.size.width * min(ratio, 1)))
+            }
+            .frame(width: 40, height: 6)
+        }
+        .padding(.vertical, 2)
     }
 }
 

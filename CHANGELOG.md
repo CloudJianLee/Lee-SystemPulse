@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 - 2026-06-19
+
+- Added detailed memory breakdown: Wired, Compressed, Purgeable, Active, Swap.
+- Added memory pressure assessment (normal/light/moderate/heavy) with weighted scoring.
+- Added I/O rate tracking: page-ins/sec and swap-ins/sec.
+- Added Chinese optimization tips generated dynamically from system state.
+- Added top 8 processes ranked by resident memory usage.
+- Expanded popover to 420px to accommodate new analysis panel.
+- Added MemoryPressure and analysis tests.
+
 ## 1.0.1 - 2026-06-19
 
 - Added single-instance protection (runtime check + LSMultipleInstancesProhibited).

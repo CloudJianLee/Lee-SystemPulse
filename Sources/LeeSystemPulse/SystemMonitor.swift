@@ -31,6 +31,40 @@ enum UsageLevel: Equatable {
     }
 }
 
+enum MemoryPressure: Equatable {
+    case normal
+    case light
+    case moderate
+    case heavy
+
+    var label: String {
+        switch self {
+        case .normal: "正常"
+        case .light: "轻度压力"
+        case .moderate: "中度压力"
+        case .heavy: "严重压力"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .normal: Color(red: 0.20, green: 0.78, blue: 0.35)
+        case .light: .orange
+        case .moderate: .red
+        case .heavy: Color(red: 0.55, green: 0.02, blue: 0.04)
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .normal: "checkmark.circle.fill"
+        case .light: "exclamationmark.triangle.fill"
+        case .moderate: "exclamationmark.octagon.fill"
+        case .heavy: "xmark.octagon.fill"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class SystemMonitor {
@@ -43,6 +77,15 @@ final class SystemMonitor {
     var cachedBytes: UInt64 = 0
     var availableBytes: UInt64 = 0
     var totalBytes: UInt64 = 0
+    var activeBytes: UInt64 = 0
+    var wiredBytes: UInt64 = 0
+    var compressedBytes: UInt64 = 0
+    var purgeableBytes: UInt64 = 0
+    var swapUsedBytes: UInt64 = 0
+    var swapTotalBytes: UInt64 = 0
+    var pageinsPerSec: Double = 0
+    var swapinsPerSec: Double = 0
+    var topProcesses: [ProcessMemoryInfo] = []
     var cpuHistory = Array(repeating: 0.0, count: 60)
     var memoryHistory = Array(repeating: 0.0, count: 60)
     var refreshInterval = 2.0 {
@@ -56,6 +99,8 @@ final class SystemMonitor {
 
     private let reader = SystemMetricsReader()
     private var timer: Timer?
+    private var processTimer: Timer?
+    private var sampleCount = 0
 
     init() {
         let savedInterval = UserDefaults.standard.double(forKey: "refreshInterval")
@@ -65,6 +110,7 @@ final class SystemMonitor {
         launchAtLogin = SMAppService.mainApp.status == .enabled
         sample()
         restartTimer()
+        restartProcessTimer()
     }
 
     var overallLevel: UsageLevel {
@@ -83,6 +129,64 @@ final class SystemMonitor {
         case .critical: "红色警告"
         case .severe: "严重拥塞"
         }
+    }
+
+    var memoryPressure: MemoryPressure {
+        let usedRatio = totalBytes > 0 ? Double(usedBytes) / Double(totalBytes) : 0
+        let compressedRatio = usedBytes > 0 ? Double(compressedBytes) / Double(usedBytes) : 0
+        let swapRatio = swapTotalBytes > 0 ? Double(swapUsedBytes) / Double(swapTotalBytes) : 0
+        let wiredRatio = totalBytes > 0 ? Double(wiredBytes) / Double(totalBytes) : 0
+
+        // Scoring: each factor contributes to a 0...1 pressure score
+        var score = 0.0
+        score += min(usedRatio * 0.4, 0.4)            // memory usage: 0...0.4
+        score += min(compressedRatio * 0.2, 0.2)       // compression ratio: 0...0.2
+        score += min(swapRatio * 0.25, 0.25)           // swap usage: 0...0.25
+        score += min(wiredRatio * 0.15, 0.15)          // wired ratio: 0...0.15
+
+        if score >= 0.75 { return .heavy }
+        if score >= 0.55 { return .moderate }
+        if score >= 0.35 { return .light }
+        return .normal
+    }
+
+    var optimizationTips: [String] {
+        var tips: [String] = []
+
+        if swapUsedBytes > 1024 * 1024 * 512 {
+            let swapStr = bytes(swapUsedBytes)
+            tips.append("Swap 使用较高 (\(swapStr))，建议关闭不常用的应用以释放内存")
+        }
+
+        if compressedBytes > totalBytes / 4 {
+            tips.append("内存压缩占用较大，系统正在积极压缩内存，建议减少同时运行的应用")
+        }
+
+        if wiredBytes > totalBytes / 2 {
+            tips.append("常驻内存（Wired）超过总内存一半，可能由内核扩展或驱动引起")
+        }
+
+        if pageinsPerSec > 100 {
+            let rate = Int(pageinsPerSec)
+            tips.append("Page-ins 速率较高 (\(rate)/秒)，磁盘读取频繁")
+        }
+
+        if swapinsPerSec > 10 {
+            let rate = Int(swapinsPerSec)
+            tips.append("Swap-ins 活跃 (\(rate)/秒)，物理内存不足导致频繁使用 Swap")
+        }
+
+        let heavyProcesses = topProcesses.filter { $0.residentBytes > 1024 * 1024 * 1024 }
+        if !heavyProcesses.isEmpty {
+            let names = heavyProcesses.prefix(3).map { $0.name }.joined(separator: "、")
+            tips.append("以下进程内存占用超过 1GB：\(names)")
+        }
+
+        if tips.isEmpty && memoryPressure != .normal {
+            tips.append("内存使用偏高，建议定期检查并关闭不需要的应用")
+        }
+
+        return tips
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -115,8 +219,29 @@ final class SystemMonitor {
             cachedBytes = memorySample.cachedBytes
             availableBytes = memorySample.availableBytes
             totalBytes = memorySample.totalBytes
+            activeBytes = memorySample.activeBytes
+            wiredBytes = memorySample.wiredBytes
+            compressedBytes = memorySample.compressedBytes
+            purgeableBytes = memorySample.purgeableBytes
             append(memory, to: &memoryHistory)
         }
+
+        if let swap = reader.readSwap() {
+            swapUsedBytes = swap.usedBytes
+            swapTotalBytes = swap.totalBytes
+        }
+
+        if let ioRates = reader.readMemoryIORates() {
+            pageinsPerSec = ioRates.pageinsPerSec
+            swapinsPerSec = ioRates.swapinsPerSec
+        }
+
+        sampleCount += 1
+    }
+
+    private func refreshProcesses() {
+        let processes = reader.readTopProcesses(count: 8)
+        self.topProcesses = processes
     }
 
     private func restartTimer() {
@@ -127,6 +252,18 @@ final class SystemMonitor {
             }
         }
         timer?.tolerance = refreshInterval * 0.1
+    }
+
+    private func restartProcessTimer() {
+        processTimer?.invalidate()
+        processTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshProcesses()
+            }
+        }
+        processTimer?.tolerance = 0.5
+        // Initial load
+        refreshProcesses()
     }
 
     private func append(_ value: Double, to history: inout [Double]) {
